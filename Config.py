@@ -1,6 +1,6 @@
 config = {
     # Path to save model
-    'model_path': 'models/wmt14_de-en_model1-1',
+    'model_path': 'models/wmt14_de-en_model1-3',
 
     # Hyperparameters
     'd_model': 512,

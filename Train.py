@@ -1,6 +1,6 @@
 # The original transformer model proposed in `Attention Is All You Need`.
 # Implemented in PyTorch using WMT14 (DE to EN).
-# 新加的 29
+# 新加的 17，141
 
 from Model import Transformer
 from Config import config # THIS MUST BE LOADED FOR FUNCTIONS TO WORK!!!
@@ -12,7 +12,24 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 import time
 from tqdm import tqdm
+from torch.optim.lr_scheduler import LambdaLR
+import os
 
+# 这个函数新加的
+def get_lr_scheduler(optimizer, warmup_steps=4000):
+    """修正后的学习率调度器（符合论文公式）"""
+
+    def lr_lambda(step):
+        step = max(step, 1)
+        # 计算乘数因子（论文公式）
+        multiplier = (config.d_model ** -0.5) * min(
+            step ** -0.5,
+            step * warmup_steps ** -1.5
+        )
+        # 调整因子使4000步时接近1.0
+        return multiplier / (config.d_model ** -0.5 * warmup_steps ** -0.5)
+
+    return LambdaLR(optimizer, lr_lambda)
 
 # Main
 def train(model_path):
@@ -26,9 +43,11 @@ def train(model_path):
     transformer = get_model(de_tokenizer, en_tokenizer, device)
     criterion = nn.CrossEntropyLoss(
         ignore_index=0,
-        label_smoothing=0.1 #多加的
+        label_smoothing=0.05 #多加的
     )
     optimizer = get_optimizer(transformer)
+    scheduler = get_lr_scheduler(optimizer, warmup_steps=4000)
+    global_step = 0
 
     # Training loop
     transformer.train()
@@ -57,12 +76,19 @@ def train(model_path):
 
             # 更新进度条信息 [5,8](@ref)
             epoch_loss += loss.item()
+
+            scheduler.step()
+            current_lr = scheduler.get_last_lr()[0]
+
+            # 添加梯度裁剪
+            torch.nn.utils.clip_grad_norm_(transformer.parameters(), max_norm=1.0)
+
             progress_bar.set_postfix(
                 loss=f"{loss.item():.4f}",  # 当前batch损失
                 avg_loss=f"{epoch_loss / (step + 1):.4f}",  # 平均损失
-                lr=f"{optimizer.param_groups[0]['lr']:.2e}"  # 学习率
+                lr=f"{current_lr:.2e}"  # 学习率
             )
-
+            global_step += 1
             # Save model
             if step % 1000 == 0:
                 save_model(model_path, epoch, transformer, optimizer)
@@ -70,7 +96,23 @@ def train(model_path):
         # 打印epoch统计信息
         avg_epoch_loss = epoch_loss / len(training_generator)
         epoch_time = time.time() - start_time
-        print(f"Epoch: {epoch + 1}, Avg Loss: {avg_epoch_loss:.4f}, Time: {epoch_time:.2f}s")
+        # print(f"Epoch: {epoch + 1}, Avg Loss: {avg_epoch_loss:.4f}, Time: {epoch_time:.2f}s")
+
+        # 获取终端宽度，默认为80
+        # try:
+        #     terminal_width = os.get_terminal_size().columns
+        # except OSError:
+        #terminal_width = 80
+
+        # 构建输出字符串
+        output = f"Epoch: {epoch + 1}, Avg Loss: {avg_epoch_loss:.4f}, Time: {epoch_time:.2f}s"
+        print(output)
+        # 计算需要补充的空格数
+        # padding = terminal_width - len(output)
+        # if padding > 0:
+        #     output += ' ' * padding
+
+        #print(output)
 
         # 保存模型
         save_model(model_path, epoch, transformer, optimizer)
@@ -95,7 +137,8 @@ def get_dataloader(dataset):
         dataset,
         batch_size=config.batch_size,
         shuffle=True,
-        num_workers=4
+        num_workers=4,
+        pin_memory=True
     )
 
 def get_model(de_tokenizer, en_tokenizer, device):
