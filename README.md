@@ -18,3 +18,11 @@ Train the model using the command:
 Test the trained model on the validation dataset using the command:  
 `$python3 TestModel.py`  
 (update `model_path` in `Config.py` as the filename changes depending on how long the model is trained)
+
+
+dataset: WMT14的DE-EN数据集   (huggingface)
+分词model：bert-base-german-cased和bert-base-uncased
+困惑度(PPL): 10.02
+BLEU分数: 13.89
+详细指标: BLEU = 13.89 62.5/14.3/8.3/5.0 (BP = 1.000 ratio = 1.000 hyp_len = 8 ref_len = 8)
+（低于原论文）

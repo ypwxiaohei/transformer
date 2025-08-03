@@ -36,7 +36,7 @@ def main():
     ).to(device)
 
     # 3. 加载训练好的模型权重
-    model_path = 'models/wmt14_de-en_model1-1_epoch4.pt'  # 根据需要修改
+    model_path = 'models/wmt14_de-en_model1-3_epoch5.pt'  # 根据需要修改
     transformer.load_state_dict(torch.load(model_path, map_location=device)['model_state_dict'])
     transformer.eval()
     print(f"已加载模型: {model_path}")
